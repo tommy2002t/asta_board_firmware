@@ -1,0 +1,8 @@
+../Core/Src/app_bmi330.c:19:13:cs_low	8	static
+../Core/Src/app_bmi330.c:24:13:cs_high	8	static
+../Core/Src/app_bmi330.c:29:13:BMI330_InitDelayTimer	8	static
+../Core/Src/app_bmi330.c:39:27:spi_write	296	static
+../Core/Src/app_bmi330.c:70:27:spi_read	560	static
+../Core/Src/app_bmi330.c:111:13:delay_us	24	static
+../Core/Src/app_bmi330.c:140:19:BMI330_App_Init	104	static
+../Core/Src/app_bmi330.c:195:19:BMI330_App_ReadRaw	64	static

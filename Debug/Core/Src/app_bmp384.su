@@ -1,0 +1,6 @@
+../Core/Src/app_bmp384.c:12:19:BMP384_App_Init	32	static
+../Core/Src/app_bmp384.c:86:19:BMP384_App_ReadSample	32	static
+../Core/Src/app_bmp384.c:107:6:BMP384_App_DataReadyIRQ	4	static
+../Core/Src/app_bmp384.c:112:9:BMP384_App_HasNewData	4	static
+../Core/Src/app_bmp384.c:117:6:BMP384_App_ClearNewData	4	static
+../Core/Src/app_bmp384.c:122:6:HAL_GPIO_EXTI_Callback	16	static

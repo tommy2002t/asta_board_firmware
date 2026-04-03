@@ -1,0 +1,8 @@
+../Core/Src/app_bmi330.c:19:13:cs_low	1
+../Core/Src/app_bmi330.c:24:13:cs_high	1
+../Core/Src/app_bmi330.c:29:13:BMI330_InitDelayTimer	2
+../Core/Src/app_bmi330.c:39:27:spi_write	5
+../Core/Src/app_bmi330.c:70:27:spi_read	5
+../Core/Src/app_bmi330.c:111:13:delay_us	5
+../Core/Src/app_bmi330.c:140:19:BMI330_App_Init	4
+../Core/Src/app_bmi330.c:195:19:BMI330_App_ReadRaw	7

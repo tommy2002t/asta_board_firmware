@@ -1,0 +1,6 @@
+../Core/Src/bmp3_port.c:3:13:bmp3_cs_low	16	static
+../Core/Src/bmp3_port.c:8:13:bmp3_cs_high	16	static
+../Core/Src/bmp3_port.c:13:6:BMP3_Port_InitDWT	4	static
+../Core/Src/bmp3_port.c:20:8:bmp3_hal_read	48	static
+../Core/Src/bmp3_port.c:49:8:bmp3_hal_write	32	static
+../Core/Src/bmp3_port.c:74:6:bmp3_hal_delay_us	24	static
