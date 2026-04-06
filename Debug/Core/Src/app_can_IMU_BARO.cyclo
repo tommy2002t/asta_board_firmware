@@ -1,4 +1,2 @@
 ../Core/Src/app_can_IMU_BARO.c:8:26:BMI330_CAN_SendFrame	2
-../Core/Src/app_can_IMU_BARO.c:32:17:BMP384_PressureToDeciHpa	3
-../Core/Src/app_can_IMU_BARO.c:51:16:BMP384_TemperatureToCentiDeg	4
-../Core/Src/app_can_IMU_BARO.c:77:19:CAN_SENSOR_App_SendCombined	6
+../Core/Src/app_can_IMU_BARO.c:32:19:CAN_SENSOR_App_SendCombined	2

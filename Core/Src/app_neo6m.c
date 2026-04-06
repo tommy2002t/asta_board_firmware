@@ -8,6 +8,8 @@
 #define NEO6M_RX_LINE_MAX            128U
 #define NEO6M_RX_RING_SIZE           512U
 #define NEO6M_FIX_TIMEOUT_MS         2000U
+#define NEO6M_UBX_MAX_PACKET_SIZE    32U
+#define NEO6M_UBX_TX_TIMEOUT_MS      100U
 
 static volatile uint8_t rx_byte;
 static char rx_line[NEO6M_RX_LINE_MAX];
@@ -25,6 +27,9 @@ static volatile uint32_t neo6m_last_sentence_tick = 0U;
 static neo6m_data_t neo6m_latest;
 
 static HAL_StatusTypeDef NEO6M_RestartRxIT(void);
+static HAL_StatusTypeDef NEO6M_SendUbx(uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t length);
+static HAL_StatusTypeDef NEO6M_SetMessageRate(uint8_t msg_class, uint8_t msg_id, uint8_t rate);
+static HAL_StatusTypeDef NEO6M_ConfigureReceiver(void);
 static uint8_t NEO6M_ChecksumOk(const char *sentence);
 static void NEO6M_ProcessLine(char *line);
 static void NEO6M_ParseRMC(char *payload);
@@ -265,6 +270,105 @@ static void NEO6M_HandleRxOverflow(void)
     rx_index = 0U;
 }
 
+static HAL_StatusTypeDef NEO6M_SendUbx(uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t length)
+{
+    uint8_t packet[NEO6M_UBX_MAX_PACKET_SIZE];
+    uint8_t ck_a = 0U;
+    uint8_t ck_b = 0U;
+    uint16_t i;
+    uint16_t packet_len;
+
+    if ((length + 8U) > sizeof(packet))
+    {
+        return HAL_ERROR;
+    }
+
+    packet[0] = 0xB5U;
+    packet[1] = 0x62U;
+    packet[2] = msg_class;
+    packet[3] = msg_id;
+    packet[4] = (uint8_t)(length & 0xFFU);
+    packet[5] = (uint8_t)(length >> 8);
+
+    for (i = 0U; i < length; i++)
+    {
+        packet[6U + i] = (payload != NULL) ? payload[i] : 0U;
+    }
+
+    for (i = 2U; i < (uint16_t)(6U + length); i++)
+    {
+        ck_a = (uint8_t)(ck_a + packet[i]);
+        ck_b = (uint8_t)(ck_b + ck_a);
+    }
+
+    packet[6U + length] = ck_a;
+    packet[7U + length] = ck_b;
+    packet_len = (uint16_t)(length + 8U);
+
+    if (HAL_UART_Transmit(&huart2, packet, packet_len, NEO6M_UBX_TX_TIMEOUT_MS) != HAL_OK)
+    {
+        return HAL_ERROR;
+    }
+
+    return HAL_OK;
+}
+
+static HAL_StatusTypeDef NEO6M_SetMessageRate(uint8_t msg_class, uint8_t msg_id, uint8_t rate)
+{
+    uint8_t payload[3];
+
+    payload[0] = msg_class;
+    payload[1] = msg_id;
+    payload[2] = rate;
+
+    return NEO6M_SendUbx(0x06U, 0x01U, payload, sizeof(payload));
+}
+
+static HAL_StatusTypeDef NEO6M_ConfigureReceiver(void)
+{
+    static const uint8_t cfg_rate_5hz[6] = { 0xC8U, 0x00U, 0x01U, 0x00U, 0x01U, 0x00U };
+    static const struct
+    {
+        uint8_t msg_id;
+        uint8_t rate;
+    } nmea_rate_table[] =
+    {
+        { 0x00U, 1U }, /* GGA */
+        { 0x04U, 1U }, /* RMC */
+        { 0x01U, 0U }, /* GLL */
+        { 0x02U, 0U }, /* GSA */
+        { 0x03U, 0U }, /* GSV */
+        { 0x05U, 0U }, /* VTG */
+        { 0x06U, 0U }, /* GRS */
+        { 0x07U, 0U }, /* GST */
+        { 0x08U, 0U }, /* ZDA */
+        { 0x09U, 0U }, /* GBS */
+        { 0x0AU, 0U }, /* DTM */
+        { 0x0EU, 0U }, /* THS */
+        { 0x41U, 0U }  /* TXT */
+    };
+    uint32_t i;
+
+    if (NEO6M_SendUbx(0x06U, 0x08U, cfg_rate_5hz, sizeof(cfg_rate_5hz)) != HAL_OK)
+    {
+        return HAL_ERROR;
+    }
+
+    HAL_Delay(20U);
+
+    for (i = 0U; i < (sizeof(nmea_rate_table) / sizeof(nmea_rate_table[0])); i++)
+    {
+        if (NEO6M_SetMessageRate(0xF0U, nmea_rate_table[i].msg_id, nmea_rate_table[i].rate) != HAL_OK)
+        {
+            return HAL_ERROR;
+        }
+
+        HAL_Delay(10U);
+    }
+
+    return HAL_OK;
+}
+
 static uint8_t NEO6M_ChecksumOk(const char *sentence)
 {
     uint8_t checksum = 0U;
@@ -494,6 +598,11 @@ HAL_StatusTypeDef NEO6M_App_Init(void)
     neo6m_initialized = 0U;
 
     if (NEO6M_RestartRxIT() != HAL_OK)
+    {
+        return HAL_ERROR;
+    }
+
+    if (NEO6M_ConfigureReceiver() != HAL_OK)
     {
         return HAL_ERROR;
     }

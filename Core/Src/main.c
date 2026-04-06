@@ -31,6 +31,8 @@
 #include "app_can_IMU_BARO.h"
 #include "app_can_GPS16.h"
 
+#include <math.h>
+
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -46,21 +48,32 @@ typedef struct
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define BMI330_TX_PERIOD_MS            10U
-#define BMP384_TX_PERIOD_MS            40U
-#define NEO6M_TX_PERIOD_MS             200U
+#define BMI330_TX_PERIOD_MS                 50U
+#define BMP384_TX_PERIOD_MS                 40U
+#define NEO6M_TX_PERIOD_MS                  200U
 
-#define BMP384_STALE_TIMEOUT_MS        150U
+#define BMP384_STALE_TIMEOUT_MS             150U
 
-#define HEARTBEAT_PERIOD_MS            1000U
-#define HEARTBEAT_PULSE_1_START_MS     0U
-#define HEARTBEAT_PULSE_1_END_MS       70U
-#define HEARTBEAT_PULSE_2_START_MS     140U
-#define HEARTBEAT_PULSE_2_END_MS       210U
+#define BARO_STD_SEA_LEVEL_PA               101325.0f
+#define BARO_ALTITUDE_EXPONENT              5.2553024f
+#define BARO_ALTITUDE_INV_EXPONENT          0.19029495f
+#define BARO_ALTITUDE_SCALE_M               44330.0f
+#define BARO_REFERENCE_GPS_ALPHA            0.98f
+#define ALTITUDE_FUSION_BARO_WEIGHT         0.85f
+#define ALTITUDE_FUSION_GPS_WEIGHT          0.15f
 
-#define ERROR_BLINK_ON_MS              140U
-#define ERROR_BLINK_OFF_MS             140U
-#define ERROR_BLINK_GROUP_PAUSE_MS     900U
+#define GPS_MIN_SATELLITES_FOR_ALTITUDE     4U
+#define ALTITUDE_INVALID_CM                 SENSOR_ALT_INVALID_CM
+
+#define HEARTBEAT_PERIOD_MS                 1000U
+#define HEARTBEAT_PULSE_1_START_MS          0U
+#define HEARTBEAT_PULSE_1_END_MS            70U
+#define HEARTBEAT_PULSE_2_START_MS          140U
+#define HEARTBEAT_PULSE_2_END_MS            210U
+
+#define ERROR_BLINK_ON_MS                   140U
+#define ERROR_BLINK_OFF_MS                  140U
+#define ERROR_BLINK_GROUP_PAUSE_MS          900U
 
 /* USER CODE END PD */
 
@@ -79,6 +92,12 @@ static uint32_t bmp384_last_valid_tick = 0U;
 
 static bmp384_sample_t latest_bmp384_sample = {0};
 static uint8_t latest_bmp384_valid = 0U;
+static float baro_sea_level_pa = BARO_STD_SEA_LEVEL_PA;
+static uint8_t baro_reference_valid = 0U;
+static int32_t latest_baro_altitude_cm = ALTITUDE_INVALID_CM;
+static uint8_t latest_baro_altitude_valid = 0U;
+static int32_t latest_fused_altitude_cm = ALTITUDE_INVALID_CM;
+
 static volatile app_error_code_t g_app_error_code = APP_ERROR_NONE;
 
 static const app_led_t g_led1 = { STATUS_LED_1_GPIO_Port, STATUS_LED_1_Pin };
@@ -99,6 +118,12 @@ static void APP_LED_Set(const app_led_t *led, uint8_t on);
 static void APP_LED_AllOff(void);
 static void APP_ErrorDelayMs(uint32_t delay_ms);
 static void APP_ErrorPatternLoop(app_error_code_t code);
+static uint8_t APP_GpsAltitudeIsValid(const neo6m_data_t *gnss);
+static int32_t APP_AltitudeDmToCm(int16_t altitude_dm);
+static HAL_StatusTypeDef APP_BaroComputeSeaLevelPressure(float pressure_pa, int32_t altitude_cm, float *sea_level_pa);
+static HAL_StatusTypeDef APP_BaroComputeAltitudeCm(float pressure_pa, float sea_level_pa, int32_t *altitude_cm);
+static void APP_RecomputeFusedAltitude(const neo6m_data_t *gnss);
+static void APP_UpdateBaroReferenceFromGps(const neo6m_data_t *gnss);
 
 /* USER CODE END PFP */
 
@@ -179,6 +204,173 @@ static void APP_ErrorPatternLoop(app_error_code_t code)
   }
 }
 
+static uint8_t APP_GpsAltitudeIsValid(const neo6m_data_t *gnss)
+{
+  if (gnss == NULL)
+  {
+    return 0U;
+  }
+
+  if ((gnss->valid == 0U) ||
+      (gnss->fix_valid == 0U) ||
+      (gnss->fix_quality == 0U) ||
+      (gnss->satellites < GPS_MIN_SATELLITES_FOR_ALTITUDE))
+  {
+    return 0U;
+  }
+
+  return 1U;
+}
+
+static int32_t APP_AltitudeDmToCm(int16_t altitude_dm)
+{
+  return ((int32_t)altitude_dm) * 10;
+}
+
+static HAL_StatusTypeDef APP_BaroComputeSeaLevelPressure(float pressure_pa, int32_t altitude_cm, float *sea_level_pa)
+{
+  float altitude_m;
+  float ratio;
+
+  if ((sea_level_pa == NULL) || (pressure_pa <= 0.0f))
+  {
+    return HAL_ERROR;
+  }
+
+  altitude_m = ((float)altitude_cm) * 0.01f;
+  ratio = 1.0f - (altitude_m / BARO_ALTITUDE_SCALE_M);
+
+  if (ratio <= 0.0f)
+  {
+    return HAL_ERROR;
+  }
+
+  *sea_level_pa = pressure_pa / powf(ratio, BARO_ALTITUDE_EXPONENT);
+
+  if (*sea_level_pa <= 0.0f)
+  {
+    return HAL_ERROR;
+  }
+
+  return HAL_OK;
+}
+
+static HAL_StatusTypeDef APP_BaroComputeAltitudeCm(float pressure_pa, float sea_level_pa, int32_t *altitude_cm)
+{
+  float altitude_m;
+  float ratio;
+  float altitude_cm_f;
+
+  if ((altitude_cm == NULL) || (pressure_pa <= 0.0f) || (sea_level_pa <= 0.0f))
+  {
+    return HAL_ERROR;
+  }
+
+  ratio = pressure_pa / sea_level_pa;
+  altitude_m = BARO_ALTITUDE_SCALE_M * (1.0f - powf(ratio, BARO_ALTITUDE_INV_EXPONENT));
+  altitude_cm_f = altitude_m * 100.0f;
+
+  if (altitude_cm_f > 2147483000.0f)
+  {
+    *altitude_cm = 2147483000;
+  }
+  else if (altitude_cm_f < -2147483000.0f)
+  {
+    *altitude_cm = -2147483000;
+  }
+  else if (altitude_cm_f >= 0.0f)
+  {
+    *altitude_cm = (int32_t)(altitude_cm_f + 0.5f);
+  }
+  else
+  {
+    *altitude_cm = (int32_t)(altitude_cm_f - 0.5f);
+  }
+
+  return HAL_OK;
+}
+
+static void APP_RecomputeFusedAltitude(const neo6m_data_t *gnss)
+{
+  uint8_t gps_altitude_valid = 0U;
+  int32_t gps_altitude_cm = ALTITUDE_INVALID_CM;
+  float fused_altitude_cm_f;
+
+  if (APP_GpsAltitudeIsValid(gnss) != 0U)
+  {
+    gps_altitude_valid = 1U;
+    gps_altitude_cm = APP_AltitudeDmToCm(gnss->altitude_dm);
+  }
+
+  if ((baro_reference_valid != 0U) && (latest_bmp384_valid != 0U) &&
+      (APP_BaroComputeAltitudeCm(latest_bmp384_sample.pressure_pa,
+                                 baro_sea_level_pa,
+                                 &latest_baro_altitude_cm) == HAL_OK))
+  {
+    latest_baro_altitude_valid = 1U;
+  }
+  else
+  {
+    latest_baro_altitude_cm = ALTITUDE_INVALID_CM;
+    latest_baro_altitude_valid = 0U;
+  }
+
+  if ((gps_altitude_valid != 0U) && (latest_baro_altitude_valid != 0U))
+  {
+    fused_altitude_cm_f = (((float)latest_baro_altitude_cm) * ALTITUDE_FUSION_BARO_WEIGHT) +
+                          (((float)gps_altitude_cm) * ALTITUDE_FUSION_GPS_WEIGHT);
+
+    if (fused_altitude_cm_f >= 0.0f)
+    {
+      latest_fused_altitude_cm = (int32_t)(fused_altitude_cm_f + 0.5f);
+    }
+    else
+    {
+      latest_fused_altitude_cm = (int32_t)(fused_altitude_cm_f - 0.5f);
+    }
+  }
+  else if (latest_baro_altitude_valid != 0U)
+  {
+    latest_fused_altitude_cm = latest_baro_altitude_cm;
+  }
+  else if (gps_altitude_valid != 0U)
+  {
+    latest_fused_altitude_cm = gps_altitude_cm;
+  }
+  else
+  {
+    latest_fused_altitude_cm = ALTITUDE_INVALID_CM;
+  }
+}
+
+static void APP_UpdateBaroReferenceFromGps(const neo6m_data_t *gnss)
+{
+  float candidate_sea_level_pa;
+
+  if ((APP_GpsAltitudeIsValid(gnss) == 0U) || (latest_bmp384_valid == 0U))
+  {
+    return;
+  }
+
+  if (APP_BaroComputeSeaLevelPressure(latest_bmp384_sample.pressure_pa,
+                                      APP_AltitudeDmToCm(gnss->altitude_dm),
+                                      &candidate_sea_level_pa) != HAL_OK)
+  {
+    return;
+  }
+
+  if (baro_reference_valid == 0U)
+  {
+    baro_sea_level_pa = candidate_sea_level_pa;
+    baro_reference_valid = 1U;
+  }
+  else
+  {
+    baro_sea_level_pa = (BARO_REFERENCE_GPS_ALPHA * baro_sea_level_pa) +
+                        ((1.0f - BARO_REFERENCE_GPS_ALPHA) * candidate_sea_level_pa);
+  }
+}
+
 static void APP_Heartbeat_Update(uint32_t now)
 {
   uint32_t phase = now % HEARTBEAT_PERIOD_MS;
@@ -242,6 +434,11 @@ static void APP_Init(void)
   latest_bmp384_sample.temperature_c = 0.0f;
   latest_bmp384_sample.valid = false;
   latest_bmp384_valid = 0U;
+  baro_sea_level_pa = BARO_STD_SEA_LEVEL_PA;
+  baro_reference_valid = 0U;
+  latest_baro_altitude_cm = ALTITUDE_INVALID_CM;
+  latest_baro_altitude_valid = 0U;
+  latest_fused_altitude_cm = ALTITUDE_INVALID_CM;
 
   APP_LED_AllOff();
 }
@@ -257,6 +454,7 @@ static void APP_Run(void)
   if ((uint32_t)(now - bmp384_last_tick) >= BMP384_TX_PERIOD_MS)
   {
     bmp384_sample_t bmp_sample;
+    neo6m_data_t gnss_snapshot;
 
     bmp384_last_tick = now;
 
@@ -271,6 +469,11 @@ static void APP_Run(void)
           latest_bmp384_sample = bmp_sample;
           latest_bmp384_valid = 1U;
           bmp384_last_valid_tick = now;
+
+          if (NEO6M_App_ReadLatest(&gnss_snapshot) == HAL_OK)
+          {
+            APP_RecomputeFusedAltitude(&gnss_snapshot);
+          }
         }
       }
     }
@@ -279,8 +482,21 @@ static void APP_Run(void)
   if ((latest_bmp384_valid != 0U) &&
       ((uint32_t)(now - bmp384_last_valid_tick) > BMP384_STALE_TIMEOUT_MS))
   {
+    neo6m_data_t gnss_snapshot;
+
     latest_bmp384_valid = 0U;
     latest_bmp384_sample.valid = false;
+    latest_baro_altitude_cm = ALTITUDE_INVALID_CM;
+    latest_baro_altitude_valid = 0U;
+
+    if (NEO6M_App_ReadLatest(&gnss_snapshot) == HAL_OK)
+    {
+      APP_RecomputeFusedAltitude(&gnss_snapshot);
+    }
+    else
+    {
+      latest_fused_altitude_cm = ALTITUDE_INVALID_CM;
+    }
   }
 
   if ((uint32_t)(now - bmi330_last_tick) >= BMI330_TX_PERIOD_MS)
@@ -289,21 +505,29 @@ static void APP_Run(void)
 
     bmi330_last_tick = now;
 
-    if ((latest_bmp384_valid != 0U) && (BMI330_App_ReadRaw(&imu_sample) == HAL_OK))
+    if (BMI330_App_ReadRaw(&imu_sample) == HAL_OK)
     {
-      (void)CAN_SENSOR_App_SendCombined(&imu_sample, &latest_bmp384_sample);
+      (void)CAN_SENSOR_App_SendCombined(&imu_sample, latest_fused_altitude_cm);
     }
   }
 
   if ((uint32_t)(now - neo6m_last_tick) >= NEO6M_TX_PERIOD_MS)
   {
+    neo6m_data_t gnss_sample;
+
     neo6m_last_tick = now;
 
     if (NEO6M_App_HasNewData() != 0U)
     {
-      if (CAN_NEO6M_App_Send() == HAL_OK)
+      if (NEO6M_App_ReadLatest(&gnss_sample) == HAL_OK)
       {
-        NEO6M_App_ClearNewData();
+        APP_UpdateBaroReferenceFromGps(&gnss_sample);
+        APP_RecomputeFusedAltitude(&gnss_sample);
+
+        if (CAN_NEO6M_App_SendData(&gnss_sample) == HAL_OK)
+        {
+          NEO6M_App_ClearNewData();
+        }
       }
     }
   }

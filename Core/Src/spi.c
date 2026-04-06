@@ -54,7 +54,7 @@ void MX_SPI1_Init(void)
   hspi1.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
   if (HAL_SPI_Init(&hspi1) != HAL_OK)
   {
-    Error_HandlerEx(APP_ERROR_SPI1_INIT);
+    Error_Handler();
   }
   /* USER CODE BEGIN SPI1_Init 2 */
 
@@ -88,7 +88,7 @@ void MX_SPI2_Init(void)
   hspi2.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
   if (HAL_SPI_Init(&hspi2) != HAL_OK)
   {
-    Error_HandlerEx(APP_ERROR_SPI2_INIT);
+    Error_Handler();
   }
   /* USER CODE BEGIN SPI2_Init 2 */
 
@@ -198,3 +198,4 @@ void HAL_SPI_MspDeInit(SPI_HandleTypeDef* spiHandle)
 /* USER CODE BEGIN 1 */
 
 /* USER CODE END 1 */
+

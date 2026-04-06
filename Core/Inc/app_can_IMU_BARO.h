@@ -3,11 +3,11 @@
 
 #include "stm32g4xx_hal.h"
 #include "app_bmi330.h"
-#include "app_bmp384.h"
+#include <stdint.h>
 
-#define SENSOR_CAN_ID_FRAME1   0x101U
-#define SENSOR_CAN_ID_FRAME2   0x102U
+#define SENSOR_CAN_ID_FUSED    0x101U
+#define SENSOR_ALT_INVALID_CM  ((int32_t)0x7FFFFFFF)
 
-HAL_StatusTypeDef CAN_SENSOR_App_SendCombined(const bmi330_raw_t *imu, const bmp384_sample_t *bmp);
+HAL_StatusTypeDef CAN_SENSOR_App_SendCombined(const bmi330_raw_t *imu, int32_t fused_altitude_cm);
 
 #endif

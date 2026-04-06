@@ -35,8 +35,7 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
  ../Core/Inc/bmi330_defs.h ../Core/Inc/app_bmp384.h ../Core/Inc/bmp3.h \
  ../Core/Inc/bmp3_defs.h ../Core/Inc/app_neo6m.h \
  ../Core/Inc/app_can_IMU_BARO.h ../Core/Inc/app_bmi330.h \
- ../Core/Inc/app_bmp384.h ../Core/Inc/app_can_GPS16.h \
- ../Core/Inc/app_neo6m.h
+ ../Core/Inc/app_can_GPS16.h ../Core/Inc/app_neo6m.h
 ../Core/Inc/main.h:
 ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal.h:
 ../Core/Inc/stm32g4xx_hal_conf.h:
@@ -84,6 +83,5 @@ Core/Src/main.o: ../Core/Src/main.c ../Core/Inc/main.h \
 ../Core/Inc/app_neo6m.h:
 ../Core/Inc/app_can_IMU_BARO.h:
 ../Core/Inc/app_bmi330.h:
-../Core/Inc/app_bmp384.h:
 ../Core/Inc/app_can_GPS16.h:
 ../Core/Inc/app_neo6m.h:

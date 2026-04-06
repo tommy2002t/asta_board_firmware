@@ -31,9 +31,8 @@ Core/Src/app_can_IMU_BARO.o: ../Core/Src/app_can_IMU_BARO.c \
  ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_uart.h \
  ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal_uart_ex.h \
  ../Core/Inc/app_bmi330.h ../Core/Inc/bmi330.h ../Core/Inc/bmi3.h \
- ../Core/Inc/bmi3_defs.h ../Core/Inc/bmi330_defs.h \
- ../Core/Inc/app_bmp384.h ../Core/Inc/main.h ../Core/Inc/bmp3.h \
- ../Core/Inc/bmp3_defs.h ../Core/Inc/fdcan.h
+ ../Core/Inc/bmi3_defs.h ../Core/Inc/bmi330_defs.h ../Core/Inc/fdcan.h \
+ ../Core/Inc/main.h
 ../Core/Inc/app_can_IMU_BARO.h:
 ../Drivers/STM32G4xx_HAL_Driver/Inc/stm32g4xx_hal.h:
 ../Core/Inc/stm32g4xx_hal_conf.h:
@@ -70,8 +69,5 @@ Core/Src/app_can_IMU_BARO.o: ../Core/Src/app_can_IMU_BARO.c \
 ../Core/Inc/bmi3.h:
 ../Core/Inc/bmi3_defs.h:
 ../Core/Inc/bmi330_defs.h:
-../Core/Inc/app_bmp384.h:
-../Core/Inc/main.h:
-../Core/Inc/bmp3.h:
-../Core/Inc/bmp3_defs.h:
 ../Core/Inc/fdcan.h:
+../Core/Inc/main.h:
