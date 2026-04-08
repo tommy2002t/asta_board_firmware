@@ -326,6 +326,7 @@ static HAL_StatusTypeDef NEO6M_SetMessageRate(uint8_t msg_class, uint8_t msg_id,
 
 static HAL_StatusTypeDef NEO6M_ConfigureReceiver(void)
 {
+    static const uint8_t cfg_rxm_max_performance[2] = { 0x08U, 0x00U };
     static const uint8_t cfg_rate_5hz[6] = { 0xC8U, 0x00U, 0x01U, 0x00U, 0x01U, 0x00U };
     static const struct
     {
@@ -348,6 +349,13 @@ static HAL_StatusTypeDef NEO6M_ConfigureReceiver(void)
         { 0x41U, 0U }  /* TXT */
     };
     uint32_t i;
+
+    if (NEO6M_SendUbx(0x06U, 0x11U, cfg_rxm_max_performance, sizeof(cfg_rxm_max_performance)) != HAL_OK)
+    {
+        return HAL_ERROR;
+    }
+
+    HAL_Delay(20U);
 
     if (NEO6M_SendUbx(0x06U, 0x08U, cfg_rate_5hz, sizeof(cfg_rate_5hz)) != HAL_OK)
     {

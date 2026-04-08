@@ -103,6 +103,12 @@ static volatile app_error_code_t g_app_error_code = APP_ERROR_NONE;
 static const app_led_t g_led1 = { STATUS_LED_1_GPIO_Port, STATUS_LED_1_Pin };
 static const app_led_t g_led2 = { STATUS_LED_2_GPIO_Port, STATUS_LED_2_Pin };
 
+/* Diagnostic globals for FDCAN start failure */
+volatile uint32_t g_fdcan_diag_hal_err = 0U;
+volatile uint32_t g_fdcan_diag_state   = 0U;
+volatile uint32_t g_fdcan_diag_cccr    = 0U;
+volatile uint32_t g_fdcan_diag_psr     = 0U;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -395,10 +401,24 @@ static HAL_StatusTypeDef CAN_App_Init(void)
 {
   HAL_GPIO_WritePin(CAN_STB_GPIO_Port, CAN_STB_Pin, GPIO_PIN_RESET);
 
+  g_fdcan_diag_hal_err = 0U;
+  g_fdcan_diag_state   = (uint32_t)hfdcan1.State;
+  g_fdcan_diag_cccr    = hfdcan1.Instance->CCCR;
+  g_fdcan_diag_psr     = hfdcan1.Instance->PSR;
+
   if (HAL_FDCAN_Start(&hfdcan1) != HAL_OK)
   {
+    g_fdcan_diag_hal_err = HAL_FDCAN_GetError(&hfdcan1);
+    g_fdcan_diag_state   = (uint32_t)hfdcan1.State;
+    g_fdcan_diag_cccr    = hfdcan1.Instance->CCCR;
+    g_fdcan_diag_psr     = hfdcan1.Instance->PSR;
     return HAL_ERROR;
   }
+
+  g_fdcan_diag_hal_err = HAL_FDCAN_GetError(&hfdcan1);
+  g_fdcan_diag_state   = (uint32_t)hfdcan1.State;
+  g_fdcan_diag_cccr    = hfdcan1.Instance->CCCR;
+  g_fdcan_diag_psr     = hfdcan1.Instance->PSR;
 
   return HAL_OK;
 }

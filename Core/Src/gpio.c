@@ -54,21 +54,35 @@ void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(CAN_STB_GPIO_Port, CAN_STB_Pin, GPIO_PIN_RESET);
 
-  /*Configure GPIO pins : BMI330_CS_Pin BMP384_CS_Pin STATUS_LED_2_Pin CAN_STB_Pin
-                           STATUS_LED_1_Pin */
-  GPIO_InitStruct.Pin = BMI330_CS_Pin|BMP384_CS_Pin|STATUS_LED_2_Pin|CAN_STB_Pin
-                          |STATUS_LED_1_Pin;
+  /*Configure GPIO pins : BMI330_CS_Pin BMP384_CS_Pin STATUS_LED_2_Pin STATUS_LED_1_Pin */
+  GPIO_InitStruct.Pin = BMI330_CS_Pin|BMP384_CS_Pin|STATUS_LED_2_Pin|STATUS_LED_1_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : BMI330_INT1_Pin BMI330_INT2_Pin BMP384_INT_Pin */
-  GPIO_InitStruct.Pin = BMI330_INT1_Pin|BMI330_INT2_Pin|BMP384_INT_Pin;
+  /*Configure GPIO pin : CAN_STB_Pin */
+  GPIO_InitStruct.Pin = CAN_STB_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLDOWN;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(CAN_STB_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : BMI330_INT1_Pin BMI330_INT2_Pin */
+  GPIO_InitStruct.Pin = BMI330_INT1_Pin|BMI330_INT2_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+  /*Configure GPIO pin : BMP384_INT_Pin */
+  GPIO_InitStruct.Pin = BMP384_INT_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(BMP384_INT_GPIO_Port, &GPIO_InitStruct);
+
+  /* EXTI interrupt init */
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 }
 
 /* USER CODE BEGIN 2 */

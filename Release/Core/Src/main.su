@@ -1,0 +1,8 @@
+../Core/Src/main.c:168:13:APP_ErrorDelayMs	0	static
+../Core/Src/main.c:293:13:APP_RecomputeFusedAltitude	24	static
+../Core/Src/main.c:154:13:APP_LED_AllOff	8	static
+../Core/Src/main.c:160:6:Error_Handler_SetCode	0	static
+../Core/Src/main.c:645:6:Error_HandlerEx	8	static,ignoring_inline_asm
+../Core/Src/main.c:594:6:SystemClock_Config	88	static
+../Core/Src/main.c:544:5:main	56	static
+../Core/Src/main.c:638:6:Error_Handler	8	static

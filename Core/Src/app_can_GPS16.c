@@ -5,6 +5,22 @@
 
 extern FDCAN_HandleTypeDef hfdcan1;
 
+static void CAN_PackFloatLE(float value, uint8_t *dst)
+{
+    union
+    {
+        float f;
+        uint32_t u32;
+    } conv;
+
+    conv.f = value;
+
+    dst[0] = (uint8_t)(conv.u32);
+    dst[1] = (uint8_t)(conv.u32 >> 8);
+    dst[2] = (uint8_t)(conv.u32 >> 16);
+    dst[3] = (uint8_t)(conv.u32 >> 24);
+}
+
 static HAL_StatusTypeDef NEO6M_CAN_SendFrame(uint32_t id, const uint8_t data[8])
 {
     FDCAN_TxHeaderTypeDef txHeader;
@@ -32,25 +48,23 @@ static HAL_StatusTypeDef NEO6M_CAN_SendFrame(uint32_t id, const uint8_t data[8])
 HAL_StatusTypeDef CAN_NEO6M_App_SendData(const neo6m_data_t *gnss)
 {
     uint8_t data_pos[8];
+    float latitude_deg;
+    float longitude_deg;
 
     if ((gnss == NULL) || (gnss->valid == 0U))
     {
         return HAL_ERROR;
     }
 
-    /* Packet 1:
-     * latitude_e7  (int32_t)
-     * longitude_e7 (int32_t)
-     */
-    data_pos[0] = (uint8_t)(((uint32_t)gnss->latitude_e7) >> 24);
-    data_pos[1] = (uint8_t)(((uint32_t)gnss->latitude_e7) >> 16);
-    data_pos[2] = (uint8_t)(((uint32_t)gnss->latitude_e7) >> 8);
-    data_pos[3] = (uint8_t)((uint32_t)gnss->latitude_e7);
+    latitude_deg = ((float)gnss->latitude_e7) / 10000000.0f;
+    longitude_deg = ((float)gnss->longitude_e7) / 10000000.0f;
 
-    data_pos[4] = (uint8_t)(((uint32_t)gnss->longitude_e7) >> 24);
-    data_pos[5] = (uint8_t)(((uint32_t)gnss->longitude_e7) >> 16);
-    data_pos[6] = (uint8_t)(((uint32_t)gnss->longitude_e7) >> 8);
-    data_pos[7] = (uint8_t)((uint32_t)gnss->longitude_e7);
+    /* Packet 1 (little-endian):
+     * latitude_deg  (float32)
+     * longitude_deg (float32)
+     */
+    CAN_PackFloatLE(latitude_deg, &data_pos[0]);
+    CAN_PackFloatLE(longitude_deg, &data_pos[4]);
 
     return NEO6M_CAN_SendFrame(NEO6M_CAN_ID_POSITION, data_pos);
 }

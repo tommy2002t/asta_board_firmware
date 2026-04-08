@@ -16,8 +16,13 @@
 
 #define BMP3_SPI_TIMEOUT_MS          100U
 
-#define BMP384_DEFAULT_PRESS_OS      BMP3_OVERSAMPLING_8X
-#define BMP384_DEFAULT_TEMP_OS       BMP3_OVERSAMPLING_2X
+/*
+ * BMP384 IIR "coefficient 2" from the external requirement is interpreted as
+ * register setting 0x02, which corresponds to the Bosch driver macro
+ * BMP3_IIR_FILTER_COEFF_3.
+ */
+#define BMP384_DEFAULT_PRESS_OS      BMP3_OVERSAMPLING_2X
+#define BMP384_DEFAULT_TEMP_OS       BMP3_NO_OVERSAMPLING
 #define BMP384_DEFAULT_IIR_FILTER    BMP3_IIR_FILTER_COEFF_3
 #define BMP384_DEFAULT_ODR           BMP3_ODR_25_HZ
 

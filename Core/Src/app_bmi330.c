@@ -170,17 +170,17 @@ HAL_StatusTypeDef BMI330_App_Init(void)
         return HAL_ERROR;
     }
 
-    config[0].cfg.acc.odr = BMI3_ACC_ODR_100HZ;
-    config[0].cfg.acc.range = BMI3_ACC_RANGE_4G;
-    config[0].cfg.acc.bwp = BMI3_ACC_BW_ODR_QUARTER;
+    config[0].cfg.acc.odr = BMI3_ACC_ODR_50HZ;
+    config[0].cfg.acc.range = BMI3_ACC_RANGE_16G;
+    config[0].cfg.acc.bwp = BMI3_ACC_BW_ODR_HALF;
     config[0].cfg.acc.avg_num = BMI3_ACC_AVG1;
-    config[0].cfg.acc.acc_mode = BMI3_ACC_MODE_NORMAL;
+    config[0].cfg.acc.acc_mode = BMI3_ACC_MODE_HIGH_PERF;
 
-    config[1].cfg.gyr.odr = BMI3_GYR_ODR_100HZ;
-    config[1].cfg.gyr.range = BMI3_GYR_RANGE_500DPS;
-    config[1].cfg.gyr.bwp = BMI3_GYR_BW_ODR_QUARTER;
+    config[1].cfg.gyr.odr = BMI3_GYR_ODR_50HZ;
+    config[1].cfg.gyr.range = BMI3_GYR_RANGE_1000DPS;
+    config[1].cfg.gyr.bwp = BMI3_GYR_BW_ODR_HALF;
     config[1].cfg.gyr.avg_num = BMI3_GYR_AVG1;
-    config[1].cfg.gyr.gyr_mode = BMI3_GYR_MODE_NORMAL;
+    config[1].cfg.gyr.gyr_mode = BMI3_GYR_MODE_HIGH_PERF;
 
     rslt = bmi330_set_sensor_config(config, 2, &bmi_dev);
     if (rslt != BMI3_OK)

@@ -1,2 +1,3 @@
-../Core/Src/app_can_IMU_BARO.c:8:26:BMI330_CAN_SendFrame	2
-../Core/Src/app_can_IMU_BARO.c:32:19:CAN_SENSOR_App_SendCombined	2
+../Core/Src/app_can_IMU_BARO.c:9:13:CAN_PackFloatLE	1
+../Core/Src/app_can_IMU_BARO.c:25:26:BMI330_CAN_SendFrame	2
+../Core/Src/app_can_IMU_BARO.c:49:19:CAN_SENSOR_App_SendCombined	3
