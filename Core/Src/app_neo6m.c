@@ -25,11 +25,14 @@ static volatile uint8_t neo6m_new_data = 0U;
 static volatile uint32_t neo6m_last_sentence_tick = 0U;
 
 static neo6m_data_t neo6m_latest;
+volatile neo6m_uart_diag_t g_neo6m_uart_diag;
 
 static HAL_StatusTypeDef NEO6M_RestartRxIT(void);
 static HAL_StatusTypeDef NEO6M_SendUbx(uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t length);
 static HAL_StatusTypeDef NEO6M_SetMessageRate(uint8_t msg_class, uint8_t msg_id, uint8_t rate);
 static HAL_StatusTypeDef NEO6M_ConfigureReceiver(void);
+static void NEO6M_ResetUartRxPath(void);
+static void NEO6M_UpdateUartDiag(UART_HandleTypeDef *huart);
 static uint8_t NEO6M_ChecksumOk(const char *sentence);
 static void NEO6M_ProcessLine(char *line);
 static void NEO6M_ParseRMC(char *payload);
@@ -270,6 +273,27 @@ static void NEO6M_HandleRxOverflow(void)
     rx_index = 0U;
 }
 
+static void NEO6M_UpdateUartDiag(UART_HandleTypeDef *huart)
+{
+    if (huart == NULL)
+    {
+        return;
+    }
+
+    g_neo6m_uart_diag.last_error_code = huart->ErrorCode;
+    g_neo6m_uart_diag.last_isr = huart->Instance->ISR;
+    g_neo6m_uart_diag.last_cr1 = huart->Instance->CR1;
+    g_neo6m_uart_diag.last_cr3 = huart->Instance->CR3;
+    g_neo6m_uart_diag.last_rx_state = (uint32_t)huart->RxState;
+    g_neo6m_uart_diag.last_g_state = (uint32_t)huart->gState;
+}
+
+static void NEO6M_ResetUartRxPath(void)
+{
+    __HAL_UART_CLEAR_FLAG(&huart2, UART_CLEAR_OREF | UART_CLEAR_NEF | UART_CLEAR_PEF | UART_CLEAR_FEF | UART_CLEAR_IDLEF);
+    __HAL_UART_SEND_REQ(&huart2, UART_RXDATA_FLUSH_REQUEST);
+}
+
 static HAL_StatusTypeDef NEO6M_SendUbx(uint8_t msg_class, uint8_t msg_id, const uint8_t *payload, uint16_t length)
 {
     uint8_t packet[NEO6M_UBX_MAX_PACKET_SIZE];
@@ -304,9 +328,12 @@ static HAL_StatusTypeDef NEO6M_SendUbx(uint8_t msg_class, uint8_t msg_id, const 
     packet[6U + length] = ck_a;
     packet[7U + length] = ck_b;
     packet_len = (uint16_t)(length + 8U);
+    g_neo6m_uart_diag.tx_packets++;
+    g_neo6m_uart_diag.tx_bytes += packet_len;
 
     if (HAL_UART_Transmit(&huart2, packet, packet_len, NEO6M_UBX_TX_TIMEOUT_MS) != HAL_OK)
     {
+        NEO6M_UpdateUartDiag(&huart2);
         return HAL_ERROR;
     }
 
@@ -588,6 +615,8 @@ static void NEO6M_ProcessRxBuffer(void)
 
 static HAL_StatusTypeDef NEO6M_RestartRxIT(void)
 {
+    g_neo6m_uart_diag.restart_count++;
+
     return HAL_UART_Receive_IT(&huart2, (uint8_t *)&rx_byte, 1U);
 }
 
@@ -596,6 +625,7 @@ HAL_StatusTypeDef NEO6M_App_Init(void)
     memset((void *)&neo6m_latest, 0, sizeof(neo6m_latest));
     memset((void *)rx_line, 0, sizeof(rx_line));
     memset((void *)rx_ring, 0, sizeof(rx_ring));
+    memset((void *)&g_neo6m_uart_diag, 0, sizeof(g_neo6m_uart_diag));
 
     rx_index = 0U;
     rx_head = 0U;
@@ -604,9 +634,14 @@ HAL_StatusTypeDef NEO6M_App_Init(void)
     neo6m_new_data = 0U;
     neo6m_last_sentence_tick = 0U;
     neo6m_initialized = 0U;
+    g_neo6m_uart_diag.init_attempts = 1U;
+
+    NEO6M_ResetUartRxPath();
 
     if (NEO6M_RestartRxIT() != HAL_OK)
     {
+        g_neo6m_uart_diag.restart_fail_count++;
+        NEO6M_UpdateUartDiag(&huart2);
         return HAL_ERROR;
     }
 
@@ -677,28 +712,47 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         return;
     }
 
+    g_neo6m_uart_diag.rx_irq_count++;
+    g_neo6m_uart_diag.last_rx_byte = rx_byte;
+    NEO6M_UpdateUartDiag(huart);
     NEO6M_RxPushByte(rx_byte);
 
     if (NEO6M_RestartRxIT() != HAL_OK)
     {
+        g_neo6m_uart_diag.restart_fail_count++;
+        NEO6M_UpdateUartDiag(huart);
         neo6m_initialized = 0U;
     }
 }
 
 void HAL_UART_ErrorCallback(UART_HandleTypeDef *huart)
 {
+    uint32_t error_code;
+
     if (huart != &huart2)
     {
         return;
     }
+
+    error_code = huart->ErrorCode;
+    g_neo6m_uart_diag.error_count++;
+    NEO6M_UpdateUartDiag(huart);
 
     rx_index = 0U;
     rx_head = 0U;
     rx_tail = 0U;
     rx_overflow = 0U;
 
-    if (NEO6M_RestartRxIT() != HAL_OK)
+    if (((error_code & (HAL_UART_ERROR_ORE | HAL_UART_ERROR_RTO)) != 0U) ||
+        (huart->RxState == HAL_UART_STATE_READY))
     {
-        neo6m_initialized = 0U;
+        NEO6M_ResetUartRxPath();
+
+        if (NEO6M_RestartRxIT() != HAL_OK)
+        {
+            g_neo6m_uart_diag.restart_fail_count++;
+            NEO6M_UpdateUartDiag(huart);
+            neo6m_initialized = 0U;
+        }
     }
 }

@@ -26,6 +26,26 @@ typedef struct
     uint8_t valid;
 } neo6m_data_t;
 
+typedef struct
+{
+    uint32_t init_attempts;
+    uint32_t tx_packets;
+    uint32_t tx_bytes;
+    uint32_t rx_irq_count;
+    uint32_t error_count;
+    uint32_t restart_count;
+    uint32_t restart_fail_count;
+    uint32_t last_error_code;
+    uint32_t last_isr;
+    uint32_t last_cr1;
+    uint32_t last_cr3;
+    uint32_t last_rx_state;
+    uint32_t last_g_state;
+    uint8_t last_rx_byte;
+} neo6m_uart_diag_t;
+
+extern volatile neo6m_uart_diag_t g_neo6m_uart_diag;
+
 HAL_StatusTypeDef NEO6M_App_Init(void);
 HAL_StatusTypeDef NEO6M_App_ReadLatest(neo6m_data_t *data);
 
